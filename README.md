@@ -1,4 +1,6 @@
-﻿# Simple Scribble Canvas
+# Simple Scribble Canvas
+
+[English](README.md) | [日本語](README_ja.md)
 
 Draw black and white freehand sketches inside a ComfyUI node and output an RGB IMAGE. No external drawing libraries or communication during drawing are used.
 

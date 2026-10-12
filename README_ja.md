@@ -1,5 +1,7 @@
 # Simple Scribble Canvas
 
+[English](README.md) | [日本語](README_ja.md)
+
 ComfyUIのノード内で黒・白の手描きラフを作り、RGBのIMAGEを出力します。外部描画ライブラリや描画中の通信は使いません。
 
 

@@ -1,0 +1,18 @@
+[project]
+name = "simple-scribble-canvas"
+version = "1.0.0"
+description = "Draw black and white sketches inside a ComfyUI node and output IMAGE. ComfyUIのノード内で黒・白の手描きラフを作成し、IMAGEとして出力します。"
+license = { text = "MIT License" }
+requires-python = ">=3.10"
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/palealloy2999-prog/ComfyUI-SimpleScribbleCanvas"
+Documentation = "https://github.com/palealloy2999-prog/ComfyUI-SimpleScribbleCanvas#readme"
+"Bug Tracker" = "https://github.com/palealloy2999-prog/ComfyUI-SimpleScribbleCanvas/issues"
+
+[tool.comfy]
+PublisherId = "palealloy"
+DisplayName = "Simple Scribble Canvas"
+Icon = "https://avatars.githubusercontent.com/u/230474078?s=400&v=4"
+requires-comfyui = ">=0.39.0"
