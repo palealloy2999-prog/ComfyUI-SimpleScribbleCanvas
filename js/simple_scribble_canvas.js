@@ -1,7 +1,16 @@
 import { app } from "../../scripts/app.js";
 
 // Images remain session-only; weak references allow the browser to reclaim them.
-const referenceImages = new Map();
+const referenceImages = new WeakMap();
+
+function getReferenceImages(graph) {
+    if (!graph) return;
+    let scopes = referenceImages.get(graph);
+    if (!scopes) referenceImages.set(graph, scopes = new Map());
+    let images = scopes.get(graph.id);
+    if (!images) scopes.set(graph.id, images = new Map());
+    return images;
+}
 
 export function roundHalfEven(value) {
     const lower = Math.floor(value);
@@ -56,33 +65,37 @@ function createCanvas(node) {
     let pendingResizes = [];
     let referenceImage = null, pasteRevision = 0;
     let referenceOffset = [0, 0];
+    let referenceCache = null;
     const clearReference = () => {
         ++pasteRevision;
         referenceOffset = [0, 0];
         if (referenceImage) {
-            referenceImages.delete(node.properties?.scribble_reference);
+            referenceCache?.delete(node.properties?.scribble_reference);
             referenceImage.close(); referenceImage = null;
         }
         if (node.properties) delete node.properties.scribble_reference;
         referenceCtx.clearRect(0, 0, reference.width, reference.height);
     };
     const restoreReference = () => {
-        const cached = referenceImages.get(node.properties?.scribble_reference);
+        referenceCache = getReferenceImages(node.graph);
+        const cached = referenceCache?.get(node.properties?.scribble_reference);
         referenceImage = cached?.nodeId === node.id ? cached.image.deref() || null : null;
         referenceOffset = referenceImage ? cached.offset : [0, 0];
-        for (const [key, entry] of referenceImages) {
-            if (!entry.image.deref()) referenceImages.delete(key);
+        if (referenceCache) {
+            for (const [key, entry] of referenceCache) {
+                if (!entry.image.deref()) referenceCache.delete(key);
+            }
         }
     };
-    const renderReference = () => {
+    const renderReference = (image = referenceImage, offset = referenceOffset) => {
         reference.width = canvas.width; reference.height = canvas.height;
         referenceCtx.clearRect(0, 0, reference.width, reference.height);
-        if (!referenceImage) return;
-        const scale = Math.min(canvas.width / referenceImage.width, canvas.height / referenceImage.height);
-        const w = referenceImage.width * scale, h = referenceImage.height * scale;
+        if (!image) return;
+        const scale = Math.min(canvas.width / image.width, canvas.height / image.height);
+        const w = image.width * scale, h = image.height * scale;
         referenceCtx.imageSmoothingEnabled = true;
         referenceCtx.imageSmoothingQuality = "high";
-        referenceCtx.drawImage(referenceImage, (canvas.width - w) / 2 + referenceOffset[0], (canvas.height - h) / 2 + referenceOffset[1], w, h);
+        referenceCtx.drawImage(image, (canvas.width - w) / 2 + offset[0], (canvas.height - h) / 2 + offset[1], w, h);
     };
     let mode = "freehand", shapeStart = null, shapeEnd = null;
     const cancelShape = () => {
@@ -208,20 +221,32 @@ function createCanvas(node) {
         if (!file) return;
         end(); cancelShape();
         const ticket = ++pasteRevision;
+        const graph = node.graph, graphId = graph?.id;
+        const cache = getReferenceImages(graph);
+        if (!cache) return;
+        let image;
         try {
-            const image = await createImageBitmap(file);
-            if (ticket !== pasteRevision) { image.close(); return; }
-            clearReference();
-            referenceImage = image;
+            const key = Array.from(crypto.getRandomValues(new Uint8Array(16)),
+                byte => byte.toString(16).padStart(2, "0")).join("");
+            image = await createImageBitmap(file);
+            if (ticket !== pasteRevision || node.graph !== graph || graph.id !== graphId) return;
+            const entry = { nodeId: node.id, image: new WeakRef(image), offset: [0, 0] };
+            renderReference(image, entry.offset);
             node.properties ??= {};
-            const key = crypto.randomUUID();
+            referenceCache?.delete(node.properties.scribble_reference);
+            referenceImage?.close();
+            referenceImage = image;
+            referenceOffset = entry.offset;
+            referenceCache = cache;
             node.properties.scribble_reference = key;
-            referenceImages.set(key, { nodeId: node.id, image: new WeakRef(image), offset: referenceOffset });
-            renderReference();
+            cache.set(key, entry);
             label.textContent = `${canvas.width} × ${canvas.height} px`;
         } catch {
-            if (ticket !== pasteRevision) return;
+            if (ticket !== pasteRevision || node.graph !== graph || graph.id !== graphId) return;
+            renderReference();
             label.textContent = "Cannot paste reference image. Copy an image and try again.";
+        } finally {
+            if (image && image !== referenceImage) image.close();
         }
     }, { signal: events.signal });
     // Retain the real parameter's positional value while removing its text editor.
@@ -399,7 +424,7 @@ function createCanvas(node) {
         return result;
     };
     const removed = node.onRemoved;
-    node.onRemoved = function (...args) { ++revision; ++pasteRevision; referenceImage = null; observer.disconnect(); events.abort(); return removed?.apply(this, args); };
+    node.onRemoved = function (...args) { ++revision; ++pasteRevision; referenceImage = null; referenceCache = null; observer.disconnect(); events.abort(); return removed?.apply(this, args); };
     restore(saved);
 }
 
