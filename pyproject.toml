@@ -1,6 +1,6 @@
 [project]
 name = "simple-scribble-canvas"
-version = "1.0.0"
+version = "1.1.0"
 description = "Draw black and white sketches inside a ComfyUI node and output IMAGE. ComfyUIのノード内で黒・白の手描きラフを作成し、IMAGEとして出力します。"
 license = { text = "MIT License" }
 requires-python = ">=3.10"
